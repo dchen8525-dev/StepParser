@@ -45,18 +45,21 @@ final class StepGeometryExtractor {
         private final Map<Integer, StepEntityInstance> entitiesById;
         private final Map<Integer, Integer> shapeByDefinitionId;
         private final Map<Integer, Integer> representationByShapeId;
+        private final Map<Integer, List<Integer>> linkedRepresentationIdsByRepresentationId;
 
         private GeometryFile(StepDataSection data) {
             this.data = data;
             this.entitiesById = new LinkedHashMap<>();
             this.shapeByDefinitionId = new LinkedHashMap<>();
             this.representationByShapeId = new LinkedHashMap<>();
+            this.linkedRepresentationIdsByRepresentationId = new LinkedHashMap<>();
 
             for (StepEntityInstance entity : data.entities()) {
                 entitiesById.put(entity.id(), entity);
             }
             indexDefinitions();
             indexRepresentations();
+            indexRepresentationRelationships();
         }
 
         private StepGeometry geometryFor(StepAssemblyTree.ProductDefinitionInfo product) {
@@ -71,7 +74,8 @@ final class StepGeometryExtractor {
                 return placeholder(product, "No SHAPE_DEFINITION_REPRESENTATION was found for this product definition.");
             }
 
-            StepEntityInstance representation = entitiesById.get(representationId);
+            Integer geometryRepresentationId = resolveGeometryRepresentationId(representationId);
+            StepEntityInstance representation = entitiesById.get(geometryRepresentationId);
             if (representation == null || representation.parameters().size() < 2) {
                 return placeholder(product, "The referenced SHAPE_REPRESENTATION is incomplete.");
             }
@@ -82,16 +86,18 @@ final class StepGeometryExtractor {
                     .findFirst()
                     .map(this::axisPlacementTransform)
                     .orElse(Transform.identity());
-            Optional<StepEntityInstance> brep = items.stream()
+            List<StepEntityInstance> breps = items.stream()
                     .filter(item -> "MANIFOLD_SOLID_BREP".equals(item.type()))
-                    .findFirst();
-            if (brep.isEmpty()) {
+                    .toList();
+            if (breps.isEmpty()) {
                 return placeholder(product, "Only MANIFOLD_SOLID_BREP items are approximated in the built-in Java exporter.");
             }
 
             List<Float> positions = new ArrayList<>();
             List<Integer> indices = new ArrayList<>();
-            addBrepFaces(brep.orElseThrow(), transform, positions, indices);
+            for (StepEntityInstance brep : breps) {
+                addBrepFaces(brep, transform, positions, indices);
+            }
             if (indices.isEmpty()) {
                 return placeholder(product, "No triangulatable face loops were found in the MANIFOLD_SOLID_BREP.");
             }
@@ -101,7 +107,9 @@ final class StepGeometryExtractor {
                     positions,
                     indices,
                     colorFor(product.definitionId()),
-                    "Approximated Java GLB from MANIFOLD_SOLID_BREP face loops. Curved surfaces are triangulated crudely."
+                    "Approximated Java GLB from MANIFOLD_SOLID_BREP face loops"
+                            + (geometryRepresentationId.equals(representationId) ? "" : " via linked representation #" + geometryRepresentationId)
+                            + ". Curved surfaces are triangulated crudely."
             );
         }
 
@@ -259,6 +267,56 @@ final class StepGeometryExtractor {
                     representationByShapeId.put(shapeId, representationId);
                 }
             }
+        }
+
+        private void indexRepresentationRelationships() {
+            for (StepEntityInstance entity : data.entities()) {
+                if (!isRepresentationRelationship(entity) || entity.parameters().size() < 4) {
+                    continue;
+                }
+                Integer firstRepresentationId = referencedEntity(entity.parameters().get(2)).map(StepEntityInstance::id).orElse(null);
+                Integer secondRepresentationId = referencedEntity(entity.parameters().get(3)).map(StepEntityInstance::id).orElse(null);
+                if (firstRepresentationId == null || secondRepresentationId == null) {
+                    continue;
+                }
+                linkedRepresentationIdsByRepresentationId
+                        .computeIfAbsent(firstRepresentationId, ignored -> new ArrayList<>())
+                        .add(secondRepresentationId);
+                linkedRepresentationIdsByRepresentationId
+                        .computeIfAbsent(secondRepresentationId, ignored -> new ArrayList<>())
+                        .add(firstRepresentationId);
+            }
+        }
+
+        private Integer resolveGeometryRepresentationId(Integer representationId) {
+            List<Integer> queue = new ArrayList<>();
+            Set<Integer> visited = new LinkedHashSet<>();
+            queue.add(representationId);
+
+            for (int index = 0; index < queue.size(); index++) {
+                Integer currentId = queue.get(index);
+                if (!visited.add(currentId)) {
+                    continue;
+                }
+                StepEntityInstance representation = entitiesById.get(currentId);
+                if (representation != null && representation.parameters().size() >= 2) {
+                    List<StepEntityInstance> items = referencedEntities(representation.parameters().get(1));
+                    if (items.stream().anyMatch(item -> "MANIFOLD_SOLID_BREP".equals(item.type()))) {
+                        return currentId;
+                    }
+                }
+                for (Integer linkedId : linkedRepresentationIdsByRepresentationId.getOrDefault(currentId, List.of())) {
+                    if (!visited.contains(linkedId)) {
+                        queue.add(linkedId);
+                    }
+                }
+            }
+            return representationId;
+        }
+
+        private boolean isRepresentationRelationship(StepEntityInstance entity) {
+            return "SHAPE_REPRESENTATION_RELATIONSHIP".equals(entity.type())
+                    || "REPRESENTATION_RELATIONSHIP".equals(entity.type());
         }
 
         private static boolean logicalValue(StepValue value) {
