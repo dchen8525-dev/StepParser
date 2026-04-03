@@ -106,10 +106,39 @@ public final class StepSemanticMapper {
                 contexts.add(mapApplicationContext(rawContext));
                 continue;
             }
+            if (rawContext != null && rawContext.type().equals("PRODUCT_CONTEXT")) {
+                contexts.add(resolveProductContext(rawContext, byId, productEntityId));
+                continue;
+            }
 
             throw new StepSemanticException("PRODUCT #" + productEntityId + " references non-APPLICATION_CONTEXT entity #" + target.id());
         }
         return List.copyOf(contexts);
+    }
+
+    private static StepApplicationContext resolveProductContext(
+            StepEntityInstance productContext,
+            Map<Integer, StepEntityInstance> byId,
+            int productEntityId
+    ) {
+        if (productContext.parameters().size() < 2) {
+            throw new StepSemanticException("PRODUCT_CONTEXT #" + productContext.id() + " is missing frame_of_reference");
+        }
+        if (!(productContext.parameters().get(1) instanceof StepReferenceValue referenceValue)) {
+            throw new StepSemanticException("PRODUCT_CONTEXT #" + productContext.id() + " frame_of_reference must be a reference");
+        }
+
+        StepEntityInstance applicationContext = referenceValue.target();
+        if (applicationContext == null) {
+            applicationContext = byId.get(referenceValue.referenceId());
+        }
+        if (applicationContext == null || !applicationContext.type().equals("APPLICATION_CONTEXT")) {
+            throw new StepSemanticException(
+                    "PRODUCT #" + productEntityId + " references PRODUCT_CONTEXT #" + productContext.id()
+                            + " without a valid APPLICATION_CONTEXT"
+            );
+        }
+        return mapApplicationContext(applicationContext);
     }
 
     private static String requireString(StepValue value, String fieldName) {

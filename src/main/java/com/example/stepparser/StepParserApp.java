@@ -6,7 +6,6 @@ import com.example.stepparser.schema.StepSemanticModel;
 import com.example.stepparser.schema.runtime.StepSchemaModel;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 public final class StepParserApp {
@@ -21,11 +20,9 @@ public final class StepParserApp {
         }
 
         Path path = Path.of(args[0]);
-        String content = Files.readString(path);
-
-        StepFile stepFile = StepFileParser.parse(content);
-        StepSchemaModel schemaModel = StepFileParser.parseWithSchema(content);
-        StepSemanticModel semanticModel = StepFileParser.parseSemantic(content);
+        StepFile stepFile = StepFileParser.parse(path);
+        StepSchemaModel schemaModel = StepFileParser.parseWithSchema(path);
+        StepSemanticModel semanticModel = StepFileParser.parseSemantic(path);
         System.out.printf("Schemas: %s%n", stepFile.header().schemaNames());
         System.out.printf("Detected schema family: %s%n", semanticModel.schema());
         System.out.printf("Entities: %d%n", stepFile.data().entities().size());

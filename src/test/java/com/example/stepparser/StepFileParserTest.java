@@ -170,7 +170,7 @@ class StepFileParserTest {
                 ENDSEC;
                 DATA;
                 #10 = APPLICATION_CONTEXT('mechanical design');
-                #11 = PRODUCT_DEFINITION_CONTEXT('part definition','design',#10);
+                #11 = PRODUCT_DEFINITION_CONTEXT('part definition',#10,'design');
                 #20 = PRODUCT('P-100','Bracket','Main bracket',(#10));
                 #30 = PRODUCT_DEFINITION_FORMATION('F-1','',#20);
                 #40 = PRODUCT_DEFINITION('D-1','release',#30,#11);
@@ -278,15 +278,20 @@ class StepFileParserTest {
         var definition = StepSchemaLoader.loadBuiltin("AP214");
 
         var protocol = definition.findEntity("APPLICATION_PROTOCOL_DEFINITION").orElseThrow();
-        assertEquals("ENUM", protocol.attributes().getFirst().type().kind().name());
-        assertEquals(2, protocol.attributes().getFirst().type().options().size());
+        assertEquals("STRING", protocol.attributes().getFirst().type().kind().name());
+        assertEquals("NUMBER", protocol.attributes().get(2).type().kind().name());
+
+        var productDefinitionContext = definition.findEntity("PRODUCT_DEFINITION_CONTEXT").orElseThrow();
+        assertEquals("APPLICATION_CONTEXT_ELEMENT", productDefinitionContext.supertype());
+        assertEquals(3, definition.resolveExplicitAttributes("PRODUCT_DEFINITION_CONTEXT").size());
+        assertEquals("REFERENCE", definition.resolveExplicitAttributes("PRODUCT_DEFINITION_CONTEXT").get(1).type().kind().name());
 
         var category = definition.findEntity("PRODUCT_RELATED_PRODUCT_CATEGORY").orElseThrow();
         assertEquals(Integer.valueOf(1), category.attributes().get(2).type().minSize());
 
         var shapeRepresentation = definition.findEntity("SHAPE_REPRESENTATION").orElseThrow();
         assertTrue(definition.findEntity("REPRESENTATION").orElseThrow().isAbstract());
-        assertEquals("SELECT", definition.resolveExplicitAttributes("SHAPE_REPRESENTATION").get(1).type().itemType().kind().name());
+        assertEquals("GENERIC", definition.resolveExplicitAttributes("SHAPE_REPRESENTATION").get(1).type().itemType().kind().name());
 
         var shapeDefinitionRelationship = definition.findEntity("SHAPE_DEFINITION_REPRESENTATION").orElseThrow();
         assertEquals(3, shapeDefinitionRelationship.attributes().size());
@@ -304,10 +309,10 @@ class StepFileParserTest {
                 ENDSEC;
                 DATA;
                 #10 = APPLICATION_CONTEXT('automotive design');
-                #11 = APPLICATION_PROTOCOL_DEFINITION(.INTERNATIONAL_STANDARD.,'schema','2024',#10);
+                #11 = APPLICATION_PROTOCOL_DEFINITION('international standard','schema',2024,#10);
                 #20 = PRODUCT('P-100','Bracket','Main bracket',(#10));
                 #30 = PRODUCT_DEFINITION_FORMATION('F-1','',#20);
-                #31 = PRODUCT_DEFINITION_CONTEXT('part definition','design',#10);
+                #31 = PRODUCT_DEFINITION_CONTEXT('part definition',#10,'design');
                 #40 = PRODUCT_DEFINITION('D-1','release',#30,#31);
                 #50 = PRODUCT_DEFINITION_SHAPE('shape','',#40);
                 #60 = SHAPE_REPRESENTATION('rep',('tag',#40,#50),('ctx'));
@@ -321,7 +326,7 @@ class StepFileParserTest {
         StepTypedEntity shapeRepresentation = model.findEntity(60).orElseThrow();
         StepTypedEntity category = model.findEntity(70).orElseThrow();
 
-        assertEquals("INTERNATIONAL_STANDARD", protocol.attributes().get("status"));
+        assertEquals("international standard", protocol.attributes().get("status"));
         assertEquals(3, ((java.util.List<?>) shapeRepresentation.attributes().get("items")).size());
         assertEquals(1, ((java.util.List<?>) category.attributes().get("products")).size());
         assertNull(protocol.attributes().get("missing"));
@@ -329,16 +334,16 @@ class StepFileParserTest {
 
     @Test
     void schemaRuntimeRejectsInvalidEnumAndListBounds() {
-        String badEnum = """
+        String badType = """
                 ISO-10303-21;
                 HEADER;
                 FILE_DESCRIPTION(('Example'),'2;1');
-                FILE_NAME('bad-enum.step','2026-04-03T00:00:00',('a'),('o'),'p','s','a');
+                FILE_NAME('bad-type.step','2026-04-03T00:00:00',('a'),('o'),'p','s','a');
                 FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
                 ENDSEC;
                 DATA;
                 #10 = APPLICATION_CONTEXT('automotive design');
-                #11 = APPLICATION_PROTOCOL_DEFINITION(.DRAFT.,'schema','2024',#10);
+                #11 = APPLICATION_PROTOCOL_DEFINITION('draft international standard','schema','2024',#10);
                 ENDSEC;
                 END-ISO-10303-21;
                 """;
@@ -356,7 +361,7 @@ class StepFileParserTest {
                 END-ISO-10303-21;
                 """;
 
-        assertThrows(StepSemanticException.class, () -> StepFileParser.parseWithSchema(badEnum));
+        assertThrows(StepSemanticException.class, () -> StepFileParser.parseWithSchema(badType));
         assertThrows(StepSemanticException.class, () -> StepFileParser.parseWithSchema(badBound));
     }
 
@@ -371,7 +376,7 @@ class StepFileParserTest {
                 ENDSEC;
                 DATA;
                 #5 = APPLICATION_CONTEXT('design');
-                #10 = PRODUCT_DEFINITION_CONTEXT('part definition','design',#5);
+                #10 = PRODUCT_DEFINITION_CONTEXT('part definition',#5,'design');
                 #20 = PRODUCT('P-100','Bracket','Main bracket',$);
                 #30 = PRODUCT_DEFINITION_FORMATION('F-1','',#20);
                 #40 = PRODUCT_DEFINITION('D-1','release',#30,#10);
