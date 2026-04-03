@@ -15,7 +15,8 @@ public final class StepParserApp {
 
     public static void main(String[] args) throws IOException {
         if (args.length != 1) {
-            System.err.println("Usage: mvn exec:java -Dexec.args=\"<path-to.step>\"");
+      System.err.println(
+          "Usage: mvn compile exec:java -Dexec.args=\"D:/work/StepParser/examples/fan.stp\"");
             System.exit(1);
         }
 
