@@ -311,10 +311,21 @@
         if (!node.glb) {
             return " | no asset";
         }
-        return node.glb.exported ? " | GLB ready" : " | GLB missing";
+        if (node.glb.exported) {
+            return " | GLB ready";
+        }
+        if (node.glb.error && node.glb.error.indexOf("not configured") >= 0) {
+            return " | GLB unavailable";
+        }
+        return " | GLB missing";
     }
 
     function meshWarningSuffix(warnings) {
+        if (warnings.some(function (warning) {
+            return warning.indexOf("GLB exporter is not configured") >= 0;
+        })) {
+            return " GLB preview is unavailable until STEP_PARSER_GLB_EXPORT_COMMAND is set.";
+        }
         return warnings.some(function (warning) {
             return warning.indexOf("GLB export failed") >= 0;
         }) ? " Some GLBs were not exported." : "";

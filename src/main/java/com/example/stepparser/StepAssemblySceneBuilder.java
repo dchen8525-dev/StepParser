@@ -33,9 +33,13 @@ public final class StepAssemblySceneBuilder {
         StepFile parsed = StepFileParser.parse(normalizedStepFile);
         List<StepAssemblyTree.AssemblyNode> roots = StepAssemblyTree.roots(parsed.data());
         List<String> warnings = new ArrayList<>();
+        String exporterUnavailableReason = exporter.unavailableReason();
 
         if (roots.isEmpty()) {
             warnings.add("No NEXT_ASSEMBLY_USAGE_OCCURRENCE relationships were found.");
+        }
+        if (exporterUnavailableReason != null && !exporterUnavailableReason.isBlank()) {
+            warnings.add(exporterUnavailableReason);
         }
 
         Files.createDirectories(assetDirectory);
@@ -155,7 +159,10 @@ public final class StepAssemblySceneBuilder {
                 result.exported(),
                 result.error()
         );
-        if (!result.exported() && result.error() != null && !result.error().isBlank()) {
+        if (!result.exported()
+                && result.error() != null
+                && !result.error().isBlank()
+                && exporter.unavailableReason() == null) {
             warnings.add("GLB export failed for definition #" + product.definitionId() + ": " + result.error());
         }
 

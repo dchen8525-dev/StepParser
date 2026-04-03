@@ -7,8 +7,22 @@ public interface StepGlbExporter {
 
     ExportResult export(ExportRequest request) throws IOException;
 
+    default String unavailableReason() {
+        return null;
+    }
+
     static StepGlbExporter disabled(String reason) {
-        return request -> ExportResult.failure(reason);
+        return new StepGlbExporter() {
+            @Override
+            public ExportResult export(ExportRequest request) {
+                return ExportResult.failure(reason);
+            }
+
+            @Override
+            public String unavailableReason() {
+                return reason;
+            }
+        };
     }
 
     record ExportRequest(

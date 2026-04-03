@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -568,5 +569,51 @@ class StepFileParserTest {
         assertTrue(json.contains("\"schemaNames\":[\"AUTOMOTIVE_DESIGN\"]"));
         assertTrue(json.contains("\"definitionId\":40"));
         assertTrue(json.contains("\"relativeUri\":\"/assets/test/Root-Assembly-40.glb\""));
+    }
+
+    @Test
+    void reportsSingleWarningWhenGlbExporterIsUnavailable() throws Exception {
+        String content = """
+                ISO-10303-21;
+                HEADER;
+                FILE_DESCRIPTION(('Example'),'2;1');
+                FILE_NAME('assembly.step','2026-04-03T00:00:00',('a'),('o'),'p','s','a');
+                FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+                ENDSEC;
+                DATA;
+                #10 = APPLICATION_CONTEXT('automotive design');
+                #11 = PRODUCT_DEFINITION_CONTEXT('part definition',#10,'design');
+                #20 = PRODUCT('ROOT-ID','Root Assembly','',(#10));
+                #21 = PRODUCT('CHILD-A','Child A','',(#10));
+                #30 = PRODUCT_DEFINITION_FORMATION('F-ROOT','',#20);
+                #31 = PRODUCT_DEFINITION_FORMATION('F-A','',#21);
+                #40 = PRODUCT_DEFINITION('ROOT-DEF','',#30,#11);
+                #41 = PRODUCT_DEFINITION('A-DEF','',#31,#11);
+                #90 = NEXT_ASSEMBLY_USAGE_OCCURRENCE('NAUO-1','','',#40,#41,$);
+                ENDSEC;
+                END-ISO-10303-21;
+                """;
+
+        Path stepFile = Files.createTempFile("assembly-scene-disabled", ".step");
+        Files.writeString(stepFile, content);
+        Path assetDirectory = Files.createTempDirectory("assembly-assets-disabled");
+
+        StepAssemblyScene scene = StepAssemblySceneBuilder.build(
+                stepFile,
+                assetDirectory,
+                "/assets/test",
+                StepGlbExporter.disabled("GLB exporter is not configured. Set STEP_PARSER_GLB_EXPORT_COMMAND.")
+        );
+
+        assertEquals(
+                List.of("GLB exporter is not configured. Set STEP_PARSER_GLB_EXPORT_COMMAND."),
+                scene.warnings()
+        );
+        assertFalse(scene.roots().getFirst().glb().exported());
+        assertEquals(
+                "GLB exporter is not configured. Set STEP_PARSER_GLB_EXPORT_COMMAND.",
+                scene.roots().getFirst().glb().error()
+        );
+        assertFalse(scene.roots().getFirst().children().getFirst().glb().exported());
     }
 }
