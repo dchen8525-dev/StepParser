@@ -64,6 +64,13 @@ mvn test
 mvn exec:java -Dexec.args="sample.step"
 ```
 
+When the file contains `NEXT_ASSEMBLY_USAGE_OCCURRENCE` relationships, the CLI also prints an assembly tree by resolving:
+
+- `NEXT_ASSEMBLY_USAGE_OCCURRENCE`
+- `PRODUCT_DEFINITION`
+- `PRODUCT_DEFINITION_FORMATION`
+- `PRODUCT`
+
 ## Next steps
 
 - Add stricter validation for unresolved references

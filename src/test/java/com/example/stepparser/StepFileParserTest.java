@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -414,6 +415,48 @@ class StepFileParserTest {
                 """;
 
         assertThrows(StepSemanticException.class, () -> StepFileParser.parseWithSchema(content));
+    }
+
+    @Test
+    void printsAssemblyTreeFromNextAssemblyUsageOccurrences() {
+        String content = """
+                ISO-10303-21;
+                HEADER;
+                FILE_DESCRIPTION(('Example'),'2;1');
+                FILE_NAME('assembly.step','2026-04-03T00:00:00',('a'),('o'),'p','s','a');
+                FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+                ENDSEC;
+                DATA;
+                #10 = APPLICATION_CONTEXT('automotive design');
+                #11 = PRODUCT_DEFINITION_CONTEXT('part definition',#10,'design');
+                #20 = PRODUCT('ROOT-ID','Root Assembly','',(#10));
+                #21 = PRODUCT('CHILD-A','Child A','',(#10));
+                #22 = PRODUCT('CHILD-B','Child B','',(#10));
+                #30 = PRODUCT_DEFINITION_FORMATION('F-ROOT','',#20);
+                #31 = PRODUCT_DEFINITION_FORMATION('F-A','',#21);
+                #32 = PRODUCT_DEFINITION_FORMATION('F-B','',#22);
+                #40 = PRODUCT_DEFINITION('ROOT-DEF','',#30,#11);
+                #41 = PRODUCT_DEFINITION('A-DEF','',#31,#11);
+                #42 = PRODUCT_DEFINITION('B-DEF','',#32,#11);
+                #90 = NEXT_ASSEMBLY_USAGE_OCCURRENCE('NAUO-1','','',#40,#41,$);
+                #91 = NEXT_ASSEMBLY_USAGE_OCCURRENCE('NAUO-2','','',#40,#42,$);
+                ENDSEC;
+                END-ISO-10303-21;
+                """;
+
+        var file = StepFileParser.parse(content);
+
+        List<StepAssemblyTree.AssemblyNode> roots = StepAssemblyTree.roots(file.data());
+        String formatted = StepAssemblyTree.format(file.data());
+
+        assertEquals(1, roots.size());
+        assertEquals("Root Assembly", roots.getFirst().product().name());
+        assertEquals(2, roots.getFirst().children().size());
+        assertTrue(formatted.contains("Assembly tree:"));
+        assertTrue(formatted.contains("#40 Root Assembly [ROOT-ID] {product #20}"));
+        assertTrue(formatted.contains("occurrence NAUO-1 (#90)"));
+        assertTrue(formatted.contains("#41 Child A [CHILD-A] {product #21}"));
+        assertTrue(formatted.contains("#42 Child B [CHILD-B] {product #22}"));
     }
 
     @Test

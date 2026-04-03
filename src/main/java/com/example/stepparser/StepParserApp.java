@@ -29,6 +29,7 @@ public final class StepParserApp {
         System.out.printf("Entities: %d%n", stepFile.data().entities().size());
         System.out.printf("Schema-mapped entities: %d%n", schemaModel.entities().size());
         System.out.printf("Products: %d%n", semanticModel.products().size());
+        System.out.println(StepAssemblyTree.format(stepFile.data()));
 
         stepFile.data().entities().stream()
                 .limit(5)
