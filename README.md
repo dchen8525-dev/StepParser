@@ -138,12 +138,32 @@ The frontend expects each node-level GLB to already contain usable geometry plac
 
 ## GLB exporter integration
 
-This repo does not include a native STEP tessellator. Actual `.glb` generation is delegated to an external command via the `STEP_PARSER_GLB_EXPORT_COMMAND` environment variable.
+This repo now includes a built-in Java GLB exporter. It writes valid `.glb` files without any external tool, approximating `MANIFOLD_SOLID_BREP` geometry from face boundary loops and falling back to placeholder preview meshes when that is not possible.
+
+If you want real STEP-derived geometry instead of placeholders, you can still delegate `.glb` generation to an external command.
+
+The server resolves the external exporter command in this order:
+
+- `STEP_PARSER_GLB_EXPORT_COMMAND` environment variable
+- `step.parser.glb-export-command` JVM system property
+- `step.parser.glb-export-command` entry in a local `.step-parser.properties` file
 
 Example:
 
 ```bash
 export STEP_PARSER_GLB_EXPORT_COMMAND="your-step-to-glb-tool --input {stepFile} --definition {definitionId} --output {outputFile}"
+```
+
+You can also start the server with a JVM property:
+
+```bash
+mvn compile exec:java -Dexec.args="--server 8080" -Dstep.parser.glb-export-command="your-step-to-glb-tool --input {stepFile} --definition {definitionId} --output {outputFile}"
+```
+
+Or create `.step-parser.properties` in the project root:
+
+```properties
+step.parser.glb-export-command=your-step-to-glb-tool --input {stepFile} --definition {definitionId} --output {outputFile}
 ```
 
 Available placeholders:
@@ -156,8 +176,9 @@ Available placeholders:
 - `{productId}`
 - `{productName}`
 
-If the exporter command is not configured, the API still returns the assembly tree, and each node includes a GLB export error in `glb.error`.
-The Babylon.js viewer will still load, but nodes without exported GLBs will not render.
+If no external exporter command is configured, the server falls back to the built-in Java exporter and tries to approximate `MANIFOLD_SOLID_BREP` shapes directly in Java.
+
+The Babylon.js viewer will still load either way. With the built-in exporter, curved surfaces are still crude and unsupported definitions still fall back to placeholders; with an external exporter, you can provide real tessellated meshes.
 
 ## Next steps
 

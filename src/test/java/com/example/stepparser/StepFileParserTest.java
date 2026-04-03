@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Properties;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -602,18 +603,300 @@ class StepFileParserTest {
                 stepFile,
                 assetDirectory,
                 "/assets/test",
-                StepGlbExporter.disabled("GLB exporter is not configured. Set STEP_PARSER_GLB_EXPORT_COMMAND.")
+                StepGlbExporter.disabled(StepParserConfiguration.missingGlbExporterMessage())
         );
 
         assertEquals(
-                List.of("GLB exporter is not configured. Set STEP_PARSER_GLB_EXPORT_COMMAND."),
+                List.of(StepParserConfiguration.missingGlbExporterMessage()),
                 scene.warnings()
         );
         assertFalse(scene.roots().getFirst().glb().exported());
         assertEquals(
-                "GLB exporter is not configured. Set STEP_PARSER_GLB_EXPORT_COMMAND.",
+                StepParserConfiguration.missingGlbExporterMessage(),
                 scene.roots().getFirst().glb().error()
         );
         assertFalse(scene.roots().getFirst().children().getFirst().glb().exported());
+    }
+
+    @Test
+    void resolvesGlbExporterCommandFromJvmProperty() throws Exception {
+        String previousValue = System.getProperty(StepParserConfiguration.GLB_EXPORT_PROPERTY);
+        try {
+            System.setProperty(StepParserConfiguration.GLB_EXPORT_PROPERTY, "mock-export --input {stepFile}");
+
+            String command = StepParserConfiguration.resolveGlbExportCommand(Path.of("").toAbsolutePath());
+
+            assertEquals("mock-export --input {stepFile}", command);
+        } finally {
+            restoreSystemProperty(StepParserConfiguration.GLB_EXPORT_PROPERTY, previousValue);
+        }
+    }
+
+    @Test
+    void resolvesGlbExporterCommandFromLocalPropertiesFile() throws Exception {
+        String previousValue = System.getProperty(StepParserConfiguration.GLB_EXPORT_PROPERTY);
+        try {
+            System.clearProperty(StepParserConfiguration.GLB_EXPORT_PROPERTY);
+            Path workingDirectory = Files.createTempDirectory("step-parser-config");
+            Path configFile = workingDirectory.resolve(StepParserConfiguration.CONFIG_FILE_NAME);
+            Properties properties = new Properties();
+            properties.setProperty(
+                    StepParserConfiguration.GLB_EXPORT_PROPERTY,
+                    "mock-export --definition {definitionId} --output {outputFile}"
+            );
+            try (var writer = Files.newBufferedWriter(configFile)) {
+                properties.store(writer, "test");
+            }
+
+            String command = StepParserConfiguration.resolveGlbExportCommand(workingDirectory);
+
+            assertEquals("mock-export --definition {definitionId} --output {outputFile}", command);
+        } finally {
+            restoreSystemProperty(StepParserConfiguration.GLB_EXPORT_PROPERTY, previousValue);
+        }
+    }
+
+    @Test
+    void javaGlbExporterWritesPlaceholderGlb() throws Exception {
+        String content = """
+                ISO-10303-21;
+                HEADER;
+                FILE_DESCRIPTION(('Example'),'2;1');
+                FILE_NAME('assembly.step','2026-04-03T00:00:00',('a'),('o'),'p','s','a');
+                FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+                ENDSEC;
+                DATA;
+                #10 = APPLICATION_CONTEXT('automotive design');
+                #11 = PRODUCT_DEFINITION_CONTEXT('part definition',#10,'design');
+                #20 = PRODUCT('ROOT-ID','Root Assembly','',(#10));
+                #21 = PRODUCT('CHILD-ID','Child Part','',(#10));
+                #30 = PRODUCT_DEFINITION_FORMATION('F-ROOT','',#20);
+                #31 = PRODUCT_DEFINITION_FORMATION('F-CHILD','',#21);
+                #40 = PRODUCT_DEFINITION('ROOT-DEF','',#30,#11);
+                #41 = PRODUCT_DEFINITION('CHILD-DEF','',#31,#11);
+                #90 = NEXT_ASSEMBLY_USAGE_OCCURRENCE('NAUO-1','','',#40,#41,$);
+                ENDSEC;
+                END-ISO-10303-21;
+                """;
+
+        Path stepFile = Files.createTempFile("assembly-scene-java-export", ".step");
+        Files.writeString(stepFile, content);
+        Path assetDirectory = Files.createTempDirectory("assembly-assets-java-export");
+
+        StepAssemblyScene scene = StepAssemblySceneBuilder.build(
+                stepFile,
+                assetDirectory,
+                "/assets/test",
+                new JavaGlbExporter()
+        );
+
+        assertEquals(
+                List.of("Using built-in Java GLB exporter. It approximates MANIFOLD_SOLID_BREP face loops and falls back to placeholders."),
+                scene.warnings()
+        );
+        assertTrue(scene.roots().getFirst().glb().exported());
+        Path glbFile = assetDirectory.resolve(scene.roots().getFirst().glb().fileName());
+        assertTrue(Files.isRegularFile(glbFile));
+        byte[] bytes = Files.readAllBytes(glbFile);
+        assertEquals(0x67, bytes[0] & 0xFF);
+        assertEquals(0x6C, bytes[1] & 0xFF);
+        assertEquals(0x54, bytes[2] & 0xFF);
+        assertEquals(0x46, bytes[3] & 0xFF);
+    }
+
+    @Test
+    void javaGlbExporterApproximatesSimpleBrepFaceLoop() throws Exception {
+        String content = """
+                ISO-10303-21;
+                HEADER;
+                FILE_DESCRIPTION(('Example'),'2;1');
+                FILE_NAME('brep.step','2026-04-03T00:00:00',('a'),('o'),'p','s','a');
+                FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+                ENDSEC;
+                DATA;
+                #10 = APPLICATION_CONTEXT('automotive design');
+                #11 = PRODUCT_DEFINITION_CONTEXT('part definition',#10,'design');
+                #20 = PRODUCT('ROOT-ID','Root Assembly','',(#10));
+                #30 = PRODUCT_DEFINITION_FORMATION('F-ROOT','',#20);
+                #40 = PRODUCT_DEFINITION('ROOT-DEF','',#30,#11);
+                #50 = PRODUCT_DEFINITION_SHAPE('shape','',#40);
+                #60 = ADVANCED_BREP_SHAPE_REPRESENTATION('rep',(#61),('ctx'));
+                #61 = MANIFOLD_SOLID_BREP('',#62);
+                #62 = CLOSED_SHELL('',(#70));
+                #70 = ADVANCED_FACE('',(#71),#99,.T.);
+                #71 = FACE_OUTER_BOUND('',#72,.T.);
+                #72 = EDGE_LOOP('',(#73,#74,#75));
+                #73 = ORIENTED_EDGE('',*,*,#76,.T.);
+                #74 = ORIENTED_EDGE('',*,*,#77,.T.);
+                #75 = ORIENTED_EDGE('',*,*,#78,.T.);
+                #76 = EDGE_CURVE('',#80,#81,#90,.T.);
+                #77 = EDGE_CURVE('',#81,#82,#91,.T.);
+                #78 = EDGE_CURVE('',#82,#80,#92,.T.);
+                #80 = VERTEX_POINT('',#83);
+                #81 = VERTEX_POINT('',#84);
+                #82 = VERTEX_POINT('',#85);
+                #83 = CARTESIAN_POINT('',(0.,0.,0.));
+                #84 = CARTESIAN_POINT('',(1.,0.,0.));
+                #85 = CARTESIAN_POINT('',(0.,1.,0.));
+                #90 = DUMMY_EDGE_GEOMETRY('');
+                #91 = DUMMY_EDGE_GEOMETRY('');
+                #92 = DUMMY_EDGE_GEOMETRY('');
+                #99 = DUMMY_SURFACE('');
+                #100 = SHAPE_DEFINITION_REPRESENTATION(#50,#60);
+                #110 = NEXT_ASSEMBLY_USAGE_OCCURRENCE('NAUO-1','','',#40,#40,$);
+                ENDSEC;
+                END-ISO-10303-21;
+                """;
+
+        Path stepFile = Files.createTempFile("assembly-scene-brep-export", ".step");
+        Files.writeString(stepFile, content);
+        Path assetDirectory = Files.createTempDirectory("assembly-assets-brep-export");
+
+        StepAssemblyScene scene = StepAssemblySceneBuilder.build(
+                stepFile,
+                assetDirectory,
+                "/assets/test",
+                new JavaGlbExporter()
+        );
+
+        assertTrue(scene.roots().getFirst().glb().exported());
+        Path glbFile = assetDirectory.resolve(scene.roots().getFirst().glb().fileName());
+        byte[] bytes = Files.readAllBytes(glbFile);
+        assertTrue(bytes.length > 600);
+    }
+
+    @Test
+    void geometryExtractorAppliesAxisPlacementTransform() throws Exception {
+        String content = """
+                ISO-10303-21;
+                HEADER;
+                FILE_DESCRIPTION(('Example'),'2;1');
+                FILE_NAME('brep-transform.step','2026-04-03T00:00:00',('a'),('o'),'p','s','a');
+                FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+                ENDSEC;
+                DATA;
+                #10 = APPLICATION_CONTEXT('automotive design');
+                #11 = PRODUCT_DEFINITION_CONTEXT('part definition',#10,'design');
+                #20 = PRODUCT('ROOT-ID','Root Assembly','',(#10));
+                #30 = PRODUCT_DEFINITION_FORMATION('F-ROOT','',#20);
+                #40 = PRODUCT_DEFINITION('ROOT-DEF','',#30,#11);
+                #50 = PRODUCT_DEFINITION_SHAPE('shape','',#40);
+                #60 = ADVANCED_BREP_SHAPE_REPRESENTATION('rep',(#61,#62),('ctx'));
+                #61 = AXIS2_PLACEMENT_3D('',#63,#64,#65);
+                #62 = MANIFOLD_SOLID_BREP('',#66);
+                #63 = CARTESIAN_POINT('',(10.,20.,30.));
+                #64 = DIRECTION('',(0.,0.,1.));
+                #65 = DIRECTION('',(0.,1.,0.));
+                #66 = CLOSED_SHELL('',(#70));
+                #70 = ADVANCED_FACE('',(#71),#99,.T.);
+                #71 = FACE_OUTER_BOUND('',#72,.T.);
+                #72 = EDGE_LOOP('',(#73,#74,#75));
+                #73 = ORIENTED_EDGE('',*,*,#76,.T.);
+                #74 = ORIENTED_EDGE('',*,*,#77,.T.);
+                #75 = ORIENTED_EDGE('',*,*,#78,.T.);
+                #76 = EDGE_CURVE('',#80,#81,#90,.T.);
+                #77 = EDGE_CURVE('',#81,#82,#91,.T.);
+                #78 = EDGE_CURVE('',#82,#80,#92,.T.);
+                #80 = VERTEX_POINT('',#83);
+                #81 = VERTEX_POINT('',#84);
+                #82 = VERTEX_POINT('',#85);
+                #83 = CARTESIAN_POINT('',(0.,0.,0.));
+                #84 = CARTESIAN_POINT('',(1.,0.,0.));
+                #85 = CARTESIAN_POINT('',(0.,1.,0.));
+                #90 = DUMMY_EDGE_GEOMETRY('');
+                #91 = DUMMY_EDGE_GEOMETRY('');
+                #92 = DUMMY_EDGE_GEOMETRY('');
+                #99 = DUMMY_SURFACE('');
+                #100 = SHAPE_DEFINITION_REPRESENTATION(#50,#60);
+                ENDSEC;
+                END-ISO-10303-21;
+                """;
+
+        Path stepFile = Files.createTempFile("geometry-transform", ".step");
+        Files.writeString(stepFile, content);
+
+        StepGeometry geometry = new StepGeometryExtractor().extract(
+                stepFile,
+                new StepAssemblyTree.ProductDefinitionInfo(40, 30, 20, "ROOT-ID", "Root Assembly", null)
+        );
+
+        assertTrue(geometry.hasTriangles());
+        assertEquals(List.of(10.0f, 20.0f, 30.0f), geometry.positions().subList(0, 3));
+        assertEquals(List.of(10.0f, 21.0f, 30.0f), geometry.positions().subList(3, 6));
+        assertEquals(List.of(9.0f, 20.0f, 30.0f), geometry.positions().subList(6, 9));
+    }
+
+    @Test
+    void geometryExtractorTriangulatesConcaveFaceLoop() throws Exception {
+        String content = """
+                ISO-10303-21;
+                HEADER;
+                FILE_DESCRIPTION(('Example'),'2;1');
+                FILE_NAME('brep-concave.step','2026-04-03T00:00:00',('a'),('o'),'p','s','a');
+                FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+                ENDSEC;
+                DATA;
+                #10 = APPLICATION_CONTEXT('automotive design');
+                #11 = PRODUCT_DEFINITION_CONTEXT('part definition',#10,'design');
+                #20 = PRODUCT('ROOT-ID','Root Assembly','',(#10));
+                #30 = PRODUCT_DEFINITION_FORMATION('F-ROOT','',#20);
+                #40 = PRODUCT_DEFINITION('ROOT-DEF','',#30,#11);
+                #50 = PRODUCT_DEFINITION_SHAPE('shape','',#40);
+                #60 = ADVANCED_BREP_SHAPE_REPRESENTATION('rep',(#61),('ctx'));
+                #61 = MANIFOLD_SOLID_BREP('',#66);
+                #66 = CLOSED_SHELL('',(#70));
+                #70 = ADVANCED_FACE('',(#71),#99,.T.);
+                #71 = FACE_OUTER_BOUND('',#72,.T.);
+                #72 = EDGE_LOOP('',(#73,#74,#75,#76,#77));
+                #73 = ORIENTED_EDGE('',*,*,#83,.T.);
+                #74 = ORIENTED_EDGE('',*,*,#84,.T.);
+                #75 = ORIENTED_EDGE('',*,*,#85,.T.);
+                #76 = ORIENTED_EDGE('',*,*,#86,.T.);
+                #77 = ORIENTED_EDGE('',*,*,#87,.T.);
+                #80 = VERTEX_POINT('',#90);
+                #81 = VERTEX_POINT('',#91);
+                #82 = VERTEX_POINT('',#92);
+                #88 = VERTEX_POINT('',#93);
+                #89 = VERTEX_POINT('',#94);
+                #83 = EDGE_CURVE('',#80,#81,#100,.T.);
+                #84 = EDGE_CURVE('',#81,#82,#101,.T.);
+                #85 = EDGE_CURVE('',#82,#88,#102,.T.);
+                #86 = EDGE_CURVE('',#88,#89,#103,.T.);
+                #87 = EDGE_CURVE('',#89,#80,#104,.T.);
+                #90 = CARTESIAN_POINT('',(0.,0.,0.));
+                #91 = CARTESIAN_POINT('',(2.,0.,0.));
+                #92 = CARTESIAN_POINT('',(2.,2.,0.));
+                #93 = CARTESIAN_POINT('',(1.,1.,0.));
+                #94 = CARTESIAN_POINT('',(0.,2.,0.));
+                #99 = DUMMY_SURFACE('');
+                #100 = DUMMY_EDGE_GEOMETRY('');
+                #101 = DUMMY_EDGE_GEOMETRY('');
+                #102 = DUMMY_EDGE_GEOMETRY('');
+                #103 = DUMMY_EDGE_GEOMETRY('');
+                #104 = DUMMY_EDGE_GEOMETRY('');
+                #110 = SHAPE_DEFINITION_REPRESENTATION(#50,#60);
+                ENDSEC;
+                END-ISO-10303-21;
+                """;
+
+        Path stepFile = Files.createTempFile("geometry-concave", ".step");
+        Files.writeString(stepFile, content);
+
+        StepGeometry geometry = new StepGeometryExtractor().extract(
+                stepFile,
+                new StepAssemblyTree.ProductDefinitionInfo(40, 30, 20, "ROOT-ID", "Root Assembly", null)
+        );
+
+        assertTrue(geometry.hasTriangles());
+        assertEquals(5, geometry.positions().size() / 3);
+        assertEquals(9, geometry.indices().size());
+    }
+
+    private static void restoreSystemProperty(String key, String value) {
+        if (value == null) {
+            System.clearProperty(key);
+            return;
+        }
+        System.setProperty(key, value);
     }
 }

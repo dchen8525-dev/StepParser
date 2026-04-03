@@ -18,9 +18,7 @@ public final class StepAssemblySceneBuilder {
     }
 
     public static StepAssemblyScene build(Path stepFile, Path assetDirectory, String assetBasePath) throws IOException {
-        return build(stepFile, assetDirectory, assetBasePath, StepGlbExporter.disabled(
-                "GLB exporter is not configured. Set STEP_PARSER_GLB_EXPORT_COMMAND."
-        ));
+        return build(stepFile, assetDirectory, assetBasePath, new JavaGlbExporter());
     }
 
     public static StepAssemblyScene build(

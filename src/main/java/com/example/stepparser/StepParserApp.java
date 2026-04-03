@@ -50,9 +50,9 @@ public final class StepParserApp {
     private static void runServer(String[] args) throws IOException {
         int port = args.length > 1 ? Integer.parseInt(args[1]) : 8080;
         Path assetRoot = Path.of("target/http-assets");
-        String commandTemplate = System.getenv("STEP_PARSER_GLB_EXPORT_COMMAND");
+        String commandTemplate = StepParserConfiguration.resolveGlbExportCommand(Path.of("").toAbsolutePath());
         StepGlbExporter exporter = commandTemplate == null || commandTemplate.isBlank()
-                ? StepGlbExporter.disabled("GLB exporter is not configured. Set STEP_PARSER_GLB_EXPORT_COMMAND.")
+                ? new JavaGlbExporter()
                 : new CommandLineGlbExporter(commandTemplate);
 
         StepParserHttpServer server = StepParserHttpServer.create(port, assetRoot, exporter);
