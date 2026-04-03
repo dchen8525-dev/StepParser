@@ -70,12 +70,14 @@ public final class StepParserHttpServer {
             Map<String, String> query = parseQuery(exchange.getRequestURI());
             String stepFileValue = query.get("stepFile");
             if (stepFileValue == null || stepFileValue.isBlank()) {
+                log("Rejected request with missing stepFile: " + exchange.getRequestURI());
                 sendJson(exchange, 400, "{\"error\":\"Missing required query parameter: stepFile.\"}");
                 return;
             }
 
             Path stepFile = Path.of(stepFileValue).toAbsolutePath().normalize();
             if (!Files.isRegularFile(stepFile)) {
+                log("STEP file not found: " + stepFile);
                 sendJson(exchange, 404, "{\"error\":\"STEP file not found.\"}");
                 return;
             }
@@ -83,11 +85,19 @@ public final class StepParserHttpServer {
             String requestId = UUID.randomUUID().toString();
             String assetBasePath = "/assets/" + requestId;
             Path requestAssetDirectory = assetRootDirectory.resolve(requestId);
+            log("GET /api/assembly-scene stepFile=" + stepFile
+                    + " | requestId=" + requestId
+                    + " | assetDir=" + requestAssetDirectory.toAbsolutePath().normalize());
 
             try {
                 StepAssemblyScene scene = StepAssemblySceneBuilder.build(stepFile, requestAssetDirectory, assetBasePath, exporter);
+                log("Scene ready for requestId=" + requestId
+                        + " | roots=" + scene.roots().size()
+                        + " | warnings=" + scene.warnings().size()
+                        + " | warningsDetail=" + scene.warnings());
                 sendJson(exchange, 200, StepJsonWriter.writeScene(scene));
             } catch (Exception exception) {
+                logError("Scene build failed for requestId=" + requestId + " | stepFile=" + stepFile, exception);
                 sendJson(exchange, 500, "{\"error\":" + quote(exception.getMessage()) + "}");
             }
         }
@@ -115,6 +125,7 @@ public final class StepParserHttpServer {
             String relative = requestPath.substring("/assets/".length());
             Path target = assetRootDirectory.resolve(relative).normalize();
             if (!target.startsWith(assetRootDirectory) || !Files.isRegularFile(target)) {
+                log("Asset not found: " + requestPath);
                 sendJson(exchange, 404, "{\"error\":\"Asset not found.\"}");
                 return;
             }
@@ -123,6 +134,7 @@ public final class StepParserHttpServer {
             headers.set("Content-Type", "model/gltf-binary");
             headers.set("Access-Control-Allow-Origin", "*");
             byte[] body = Files.readAllBytes(target);
+            log("Serving asset " + target + " | bytes=" + body.length);
             exchange.sendResponseHeaders(200, body.length);
             try (OutputStream output = exchange.getResponseBody()) {
                 output.write(body);
@@ -238,5 +250,14 @@ public final class StepParserHttpServer {
 
     private static String quote(String value) {
         return value == null ? "null" : "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    private static void log(String message) {
+        System.out.println("[StepParserHttpServer] " + message);
+    }
+
+    private static void logError(String message, Exception exception) {
+        System.err.println("[StepParserHttpServer] " + message);
+        exception.printStackTrace(System.err);
     }
 }

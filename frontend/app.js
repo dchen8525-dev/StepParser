@@ -81,9 +81,15 @@
 
         setStatus("Loading assembly data...");
         clearLoadedContent();
+        console.log("[StepParserViewer] Loading assembly", { stepFile: stepFile });
 
         const response = await fetch("/api/assembly-scene?stepFile=" + encodeURIComponent(stepFile));
         const payload = await response.json();
+        console.log("[StepParserViewer] Assembly response", {
+            ok: response.ok,
+            status: response.status,
+            payload: payload
+        });
         if (!response.ok) {
             throw new Error(payload.error || "Failed to load assembly scene.");
         }
@@ -171,9 +177,19 @@
         const nodes = flattenNodes(roots);
         for (const node of nodes) {
             if (!node.glb || !node.glb.exported || !node.glb.relativeUri) {
+                console.warn("[StepParserViewer] Skipping node without exported GLB", {
+                    instanceId: node.instanceId,
+                    definitionId: node.definitionId,
+                    glb: node.glb
+                });
                 continue;
             }
             try {
+                console.log("[StepParserViewer] Importing GLB", {
+                    instanceId: node.instanceId,
+                    definitionId: node.definitionId,
+                    uri: node.glb.relativeUri
+                });
                 const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", node.glb.relativeUri, scene);
                 const meshes = result.meshes.filter(function (mesh) {
                     return mesh && mesh.name !== "__root__";
@@ -190,6 +206,14 @@
                     }
                 });
                 state.nodeMeshes.set(node.instanceId, meshes);
+                console.log("[StepParserViewer] Imported GLB", {
+                    instanceId: node.instanceId,
+                    definitionId: node.definitionId,
+                    meshCount: meshes.length,
+                    meshes: meshes.map(function (mesh) {
+                        return describeMesh(mesh);
+                    })
+                });
             } catch (error) {
                 console.error("Failed to load GLB for node", node.instanceId, error);
             }
@@ -339,5 +363,24 @@
     function setStatus(message, isError) {
         statusEl.textContent = message;
         statusEl.style.color = isError ? "#a23b2a" : "";
+    }
+
+    function describeMesh(mesh) {
+        const info = mesh.getBoundingInfo();
+        return {
+            name: mesh.name,
+            vertices: typeof mesh.getTotalVertices === "function" ? mesh.getTotalVertices() : null,
+            indices: typeof mesh.getTotalIndices === "function" ? mesh.getTotalIndices() : null,
+            min: vectorToObject(info.boundingBox.minimumWorld),
+            max: vectorToObject(info.boundingBox.maximumWorld)
+        };
+    }
+
+    function vectorToObject(vector) {
+        return {
+            x: Number(vector.x.toFixed(4)),
+            y: Number(vector.y.toFixed(4)),
+            z: Number(vector.z.toFixed(4))
+        };
     }
 })();

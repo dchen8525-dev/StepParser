@@ -32,6 +32,9 @@ public final class StepAssemblySceneBuilder {
         List<StepAssemblyTree.AssemblyNode> roots = StepAssemblyTree.roots(parsed.data());
         List<String> warnings = new ArrayList<>();
         String exporterUnavailableReason = exporter.unavailableReason();
+        log("Building assembly scene for " + normalizedStepFile
+                + " | schemaNames=" + parsed.header().schemaNames()
+                + " | roots=" + roots.size());
 
         if (roots.isEmpty()) {
             warnings.add("No NEXT_ASSEMBLY_USAGE_OCCURRENCE relationships were found.");
@@ -81,6 +84,10 @@ public final class StepAssemblySceneBuilder {
             Set<Integer> path
     ) throws IOException {
         StepAssemblyTree.ProductDefinitionInfo product = node.product();
+        log("Visiting node instance=" + instanceId
+                + " | definition=#" + product.definitionId()
+                + " | name=" + firstNonBlank(product.name(), product.productId(), "<unnamed>")
+                + " | children=" + node.children().size());
         StepAssemblyScene.GlbAsset asset = assetFor(stepFile, assetDirectory, assetBasePath, exporter, assetsByDefinitionId, warnings, product);
         if (!path.add(product.definitionId())) {
             warnings.add("Cycle detected at product definition #" + product.definitionId() + ".");
@@ -144,11 +151,16 @@ public final class StepAssemblySceneBuilder {
     ) throws IOException {
         StepAssemblyScene.GlbAsset cached = assetsByDefinitionId.get(product.definitionId());
         if (cached != null) {
+            log("Reusing cached GLB for definition #" + product.definitionId()
+                    + " | exported=" + cached.exported()
+                    + " | file=" + cached.fileName());
             return cached;
         }
 
         String fileName = sanitizeFileName(product) + ".glb";
         Path outputFile = assetDirectory.resolve(fileName);
+        log("Requesting GLB export for definition #" + product.definitionId()
+                + " | output=" + outputFile.toAbsolutePath().normalize());
         StepGlbExporter.ExportResult result = exporter.export(new StepGlbExporter.ExportRequest(stepFile, product, outputFile));
 
         StepAssemblyScene.GlbAsset asset = new StepAssemblyScene.GlbAsset(
@@ -157,6 +169,9 @@ public final class StepAssemblySceneBuilder {
                 result.exported(),
                 result.error()
         );
+        log("GLB export finished for definition #" + product.definitionId()
+                + " | exported=" + result.exported()
+                + " | error=" + result.error());
         if (!result.exported()
                 && result.error() != null
                 && !result.error().isBlank()
@@ -196,5 +211,9 @@ public final class StepAssemblySceneBuilder {
             }
         }
         return "";
+    }
+
+    private static void log(String message) {
+        System.out.println("[StepAssemblySceneBuilder] " + message);
     }
 }
