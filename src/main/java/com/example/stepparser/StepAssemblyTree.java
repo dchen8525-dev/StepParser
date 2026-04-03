@@ -69,7 +69,7 @@ public final class StepAssemblyTree {
 
         List<AssemblyNode> roots = new ArrayList<>();
         for (Integer rootDefinitionId : rootDefinitionIds) {
-            roots.add(buildNode(rootDefinitionId, definitions, linksByParent));
+            roots.add(buildNode(rootDefinitionId, definitions, linksByParent, new LinkedHashSet<>()));
         }
         return List.copyOf(roots);
     }
@@ -91,17 +91,22 @@ public final class StepAssemblyTree {
     private static AssemblyNode buildNode(
             int definitionId,
             Map<Integer, ProductDefinitionInfo> definitions,
-            Map<Integer, List<AssemblyLink>> linksByParent
+            Map<Integer, List<AssemblyLink>> linksByParent,
+            Set<Integer> path
     ) {
         ProductDefinitionInfo info = definitions.getOrDefault(definitionId, ProductDefinitionInfo.missing(definitionId));
+        if (!path.add(definitionId)) {
+            return new AssemblyNode(info, List.of());
+        }
         List<AssemblyOccurrence> children = new ArrayList<>();
         for (AssemblyLink link : linksByParent.getOrDefault(definitionId, List.of())) {
             children.add(new AssemblyOccurrence(
                     link.occurrenceEntityId(),
                     link.occurrenceId(),
-                    buildNode(link.childDefinitionId(), definitions, linksByParent)
+                    buildNode(link.childDefinitionId(), definitions, linksByParent, path)
             ));
         }
+        path.remove(definitionId);
         return new AssemblyNode(info, List.copyOf(children));
     }
 

@@ -71,6 +71,94 @@ When the file contains `NEXT_ASSEMBLY_USAGE_OCCURRENCE` relationships, the CLI a
 - `PRODUCT_DEFINITION_FORMATION`
 - `PRODUCT`
 
+## Frontend scene API
+
+The project now includes:
+
+- a small HTTP API that returns assembly-tree data together with per-definition GLB asset references
+- a Babylon.js frontend served from `/`
+
+Start the server:
+
+```bash
+mvn compile exec:java -Dexec.args="--server 8080"
+```
+
+Open the viewer:
+
+```text
+http://localhost:8080/
+```
+
+Load a STEP file:
+
+```bash
+curl "http://localhost:8080/api/assembly-scene?stepFile=/absolute/path/to/model.step"
+```
+
+The response shape is:
+
+```json
+{
+  "sourceStepFile": "/absolute/path/to/model.step",
+  "schemaNames": ["AUTOMOTIVE_DESIGN"],
+  "roots": [
+    {
+      "instanceId": "def-40",
+      "definitionId": 40,
+      "displayName": "Root Assembly",
+      "glb": {
+        "fileName": "Root-Assembly-40.glb",
+        "relativeUri": "/assets/<request-id>/Root-Assembly-40.glb",
+        "exported": true,
+        "error": null
+      },
+      "children": []
+    }
+  ],
+  "warnings": []
+}
+```
+
+Generated GLB files are served by the same server under `/assets/...`.
+
+## Babylon.js frontend
+
+The frontend is a static app in `frontend/` and is served directly by the Java HTTP server.
+
+Features:
+
+- STEP file path input
+- assembly-tree sidebar
+- Babylon.js 3D viewport
+- click a tree node to highlight and isolate that part
+- fit-to-view camera reset button
+
+The frontend expects each node-level GLB to already contain usable geometry placement for the whole assembly scene.
+
+## GLB exporter integration
+
+This repo does not include a native STEP tessellator. Actual `.glb` generation is delegated to an external command via the `STEP_PARSER_GLB_EXPORT_COMMAND` environment variable.
+
+Example:
+
+```bash
+export STEP_PARSER_GLB_EXPORT_COMMAND="your-step-to-glb-tool --input {stepFile} --definition {definitionId} --output {outputFile}"
+```
+
+Available placeholders:
+
+- `{stepFile}`
+- `{outputFile}`
+- `{definitionId}`
+- `{formationEntityId}`
+- `{productEntityId}`
+- `{productId}`
+- `{productName}`
+
+If the exporter command is not configured, the API still returns the assembly tree, and each node includes a GLB export error in `glb.error`.
+The Babylon.js viewer will still load, but nodes without exported GLBs will not render.
+
 ## Next steps
 
 - Add stricter validation for unresolved references

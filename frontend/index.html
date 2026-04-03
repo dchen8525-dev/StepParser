@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STEP Assembly Viewer</title>
+    <link rel="preconnect" href="https://cdn.babylonjs.com">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <p class="eyebrow">Babylon.js Viewer</p>
+            <h1>STEP Assembly</h1>
+            <p class="lede">Load the backend scene JSON, inspect the assembly tree, and render each GLB into one Babylon scene.</p>
+        </div>
+
+        <form id="load-form" class="panel controls">
+            <label for="step-file-input">STEP file path</label>
+            <input id="step-file-input" name="stepFile" type="text" placeholder="/root/work/StepParser/examples/fan.stp" required>
+            <div class="button-row">
+                <button type="submit">Load Assembly</button>
+                <button type="button" id="fit-view-button" class="secondary">Fit View</button>
+            </div>
+            <p id="status" class="status">Server ready.</p>
+        </form>
+
+        <section class="panel metadata">
+            <div>
+                <span class="meta-label">Source</span>
+                <span id="source-step-file">None</span>
+            </div>
+            <div>
+                <span class="meta-label">Schemas</span>
+                <span id="schema-names">None</span>
+            </div>
+            <div>
+                <span class="meta-label">GLB nodes</span>
+                <span id="node-count">0</span>
+            </div>
+        </section>
+
+        <section class="panel warnings">
+            <div class="section-header">
+                <h2>Warnings</h2>
+            </div>
+            <ul id="warning-list" class="warning-list">
+                <li>No data loaded.</li>
+            </ul>
+        </section>
+
+        <section class="panel tree-panel">
+            <div class="section-header">
+                <h2>Assembly Tree</h2>
+            </div>
+            <div id="tree-root" class="tree-root">
+                <p class="empty-state">Load a STEP file to populate the tree.</p>
+            </div>
+        </section>
+    </aside>
+
+    <main class="viewer-panel">
+        <div class="viewer-toolbar">
+            <div>
+                <span class="meta-label">Selected</span>
+                <span id="selected-label">None</span>
+            </div>
+            <div>
+                <span class="meta-label">Hint</span>
+                <span>Click a node to isolate its meshes.</span>
+            </div>
+        </div>
+        <canvas id="render-canvas"></canvas>
+    </main>
+</div>
+
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -494,4 +494,79 @@ class StepFileParserTest {
             }
         }
     }
+
+    @Test
+    void buildsFrontendAssemblySceneWithPerDefinitionGlbAsset() throws Exception {
+        String content = """
+                ISO-10303-21;
+                HEADER;
+                FILE_DESCRIPTION(('Example'),'2;1');
+                FILE_NAME('assembly.step','2026-04-03T00:00:00',('a'),('o'),'p','s','a');
+                FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+                ENDSEC;
+                DATA;
+                #10 = APPLICATION_CONTEXT('automotive design');
+                #11 = PRODUCT_DEFINITION_CONTEXT('part definition',#10,'design');
+                #20 = PRODUCT('ROOT-ID','Root Assembly','',(#10));
+                #21 = PRODUCT('CHILD-A','Child A','',(#10));
+                #30 = PRODUCT_DEFINITION_FORMATION('F-ROOT','',#20);
+                #31 = PRODUCT_DEFINITION_FORMATION('F-A','',#21);
+                #40 = PRODUCT_DEFINITION('ROOT-DEF','',#30,#11);
+                #41 = PRODUCT_DEFINITION('A-DEF','',#31,#11);
+                #90 = NEXT_ASSEMBLY_USAGE_OCCURRENCE('NAUO-1','','',#40,#41,$);
+                ENDSEC;
+                END-ISO-10303-21;
+                """;
+
+        Path stepFile = Files.createTempFile("assembly-scene", ".step");
+        Files.writeString(stepFile, content);
+        Path assetDirectory = Files.createTempDirectory("assembly-assets");
+
+        StepGlbExporter exporter = request -> {
+            Files.write(request.outputFile(), new byte[] { 'g', 'l', 'b' });
+            return StepGlbExporter.ExportResult.success();
+        };
+
+        StepAssemblyScene scene = StepAssemblySceneBuilder.build(stepFile, assetDirectory, "/assets/test", exporter);
+
+        assertEquals(1, scene.roots().size());
+        StepAssemblyScene.SceneNode root = scene.roots().getFirst();
+        assertEquals("Root Assembly", root.displayName());
+        assertEquals("/assets/test/Root-Assembly-40.glb", root.glb().relativeUri());
+        assertTrue(root.glb().exported());
+        assertEquals(1, root.children().size());
+        assertEquals("Child A", root.children().getFirst().displayName());
+        assertTrue(Files.exists(assetDirectory.resolve("Root-Assembly-40.glb")));
+        assertTrue(Files.exists(assetDirectory.resolve("Child-A-41.glb")));
+    }
+
+    @Test
+    void serializesAssemblySceneAsJsonForFrontend() {
+        StepAssemblyScene scene = new StepAssemblyScene(
+                "/tmp/sample.step",
+                List.of("AUTOMOTIVE_DESIGN"),
+                List.of(new StepAssemblyScene.SceneNode(
+                        "def-40",
+                        null,
+                        null,
+                        40,
+                        30,
+                        20,
+                        "ROOT-ID",
+                        "Root Assembly",
+                        "",
+                        "Root Assembly",
+                        new StepAssemblyScene.GlbAsset("Root-Assembly-40.glb", "/assets/test/Root-Assembly-40.glb", true, null),
+                        List.of()
+                )),
+                List.of()
+        );
+
+        String json = StepJsonWriter.writeScene(scene);
+
+        assertTrue(json.contains("\"sourceStepFile\":\"/tmp/sample.step\""));
+        assertTrue(json.contains("\"schemaNames\":[\"AUTOMOTIVE_DESIGN\"]"));
+        assertTrue(json.contains("\"definitionId\":40"));
+        assertTrue(json.contains("\"relativeUri\":\"/assets/test/Root-Assembly-40.glb\""));
+    }
 }

@@ -1,0 +1,280 @@
+:root {
+    --bg: #f3efe5;
+    --panel: rgba(255, 252, 246, 0.92);
+    --panel-strong: #fffaf2;
+    --line: rgba(63, 52, 36, 0.16);
+    --text: #2e2418;
+    --muted: #7a6856;
+    --accent: #0b6e4f;
+    --accent-soft: rgba(11, 110, 79, 0.14);
+    --warn: #a23b2a;
+    --shadow: 0 18px 40px rgba(55, 38, 13, 0.12);
+    --radius: 18px;
+    --font-display: "Space Grotesk", "Segoe UI", sans-serif;
+    --font-body: "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+    background:
+        radial-gradient(circle at top left, rgba(196, 234, 216, 0.9), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(252, 209, 149, 0.45), transparent 22%),
+        linear-gradient(135deg, #f6f1e7 0%, #e9e1d3 100%);
+    color: var(--text);
+    font-family: var(--font-body);
+}
+
+body {
+    overflow: hidden;
+}
+
+.app-shell {
+    display: grid;
+    grid-template-columns: 360px minmax(0, 1fr);
+    gap: 18px;
+    height: 100%;
+    padding: 18px;
+}
+
+.sidebar,
+.viewer-panel {
+    min-height: 0;
+}
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.panel {
+    background: var(--panel);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.brand {
+    padding: 10px 6px 0;
+}
+
+.eyebrow,
+.meta-label {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.72rem;
+    color: var(--muted);
+}
+
+.brand h1 {
+    margin: 0.2rem 0 0.5rem;
+    font-family: var(--font-display);
+    font-size: 2.4rem;
+    line-height: 0.95;
+}
+
+.lede {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.controls,
+.metadata,
+.warnings,
+.tree-panel {
+    padding: 16px;
+}
+
+.controls {
+    display: grid;
+    gap: 10px;
+}
+
+label {
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+input {
+    width: 100%;
+    border: 1px solid rgba(63, 52, 36, 0.18);
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: var(--panel-strong);
+    color: var(--text);
+    font: inherit;
+}
+
+input:focus {
+    outline: 2px solid rgba(11, 110, 79, 0.25);
+    border-color: var(--accent);
+}
+
+.button-row {
+    display: flex;
+    gap: 10px;
+}
+
+button {
+    border: 0;
+    border-radius: 999px;
+    padding: 11px 16px;
+    background: var(--accent);
+    color: #f6fff8;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+button.secondary {
+    background: rgba(46, 36, 24, 0.1);
+    color: var(--text);
+}
+
+button:hover {
+    filter: brightness(1.03);
+}
+
+.status {
+    margin: 0;
+    min-height: 1.25rem;
+    color: var(--muted);
+}
+
+.metadata {
+    display: grid;
+    gap: 10px;
+}
+
+.metadata div {
+    display: grid;
+    gap: 4px;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.section-header h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1rem;
+}
+
+.warning-list,
+.tree-root ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.warning-list {
+    color: var(--warn);
+}
+
+.tree-panel {
+    flex: 1;
+    overflow: auto;
+}
+
+.tree-root {
+    font-size: 0.93rem;
+}
+
+.tree-node {
+    display: grid;
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.tree-button {
+    width: 100%;
+    text-align: left;
+    border-radius: 14px;
+    background: transparent;
+    color: var(--text);
+    padding: 10px 12px;
+    border: 1px solid transparent;
+}
+
+.tree-button:hover,
+.tree-button.active {
+    background: var(--accent-soft);
+    border-color: rgba(11, 110, 79, 0.26);
+}
+
+.tree-title {
+    display: block;
+    font-weight: 700;
+}
+
+.tree-meta {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.empty-state {
+    margin: 0;
+    color: var(--muted);
+}
+
+.viewer-panel {
+    position: relative;
+    background: linear-gradient(160deg, rgba(255, 251, 245, 0.88), rgba(241, 232, 216, 0.65));
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.viewer-toolbar {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    z-index: 2;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    background: rgba(255, 249, 240, 0.78);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    backdrop-filter: blur(10px);
+}
+
+#render-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+}
+
+@media (max-width: 960px) {
+    body {
+        overflow: auto;
+    }
+
+    .app-shell {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(60vh, 1fr);
+        height: auto;
+        min-height: 100%;
+    }
+
+    .tree-panel {
+        max-height: 32vh;
+    }
+}
